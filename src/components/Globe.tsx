@@ -4,8 +4,8 @@ import * as satellite from "satellite.js";
 import { X, Activity, Mountain, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
-import { Viewer as CesiumViewer, Cartesian3, Color, ScreenSpaceEventType } from "cesium";
-import { CesiumComponentRef, Viewer, Entity, PointGraphics, ScreenSpaceEventHandler, ScreenSpaceEvent, PolylineGraphics, EllipseGraphics } from "resium";
+import { Viewer as CesiumViewer, Cartesian3, Color, ScreenSpaceEventType, HeadingPitchRange, Math as CesiumMath } from "cesium";
+import { CesiumComponentRef, Viewer, Entity, BillboardGraphics, ScreenSpaceEventHandler, ScreenSpaceEvent, PolylineGraphics, EllipseGraphics } from "resium";
 
 // Bypass local web workers
 // 1. Safely tell TypeScript that our window object has a Cesium property
@@ -189,38 +189,59 @@ export default function Globe() {
 
         {/* WE FIXED THE SIZE AND COLOR CRASH HERE */}
         {satellites
-          .filter(sat => filter === "all" || sat.type === filter) // Apply the filter
+          .filter((sat) => filter === "all" || sat.type === filter)
           .map((sat) => (
-          <Entity 
-            key={sat.id}
-            id={sat.id}
-            position={sat.position}
-            name={sat.name}
-            onClick={() => {
-              setSelectedSat(sat);
-              if (viewerRef.current?.cesiumElement) {
-                const target = viewerRef.current.cesiumElement.entities.getById(sat.id);
-                if (target) viewerRef.current.cesiumElement.flyTo(target, { duration: 1.5 });
-              }
-            }}
-          >
-            <PointGraphics 
-              pixelSize={sat.type === "active" ? 6 : 4} // Active sats are slightly bigger
-              color={sat.type === "active" ? Color.WHITE : Color.RED} // Debris is RED
-            />
-          </Entity>
-        ))}
+            <Entity
+              key={sat.id}
+              id={sat.id}
+              position={sat.position}
+              name={sat.name}
+              onClick={() => {
+                // 1. Set the sidebar target
+                setSelectedSat(sat);
+                
+                // 2. Execute the Top-Down Drone Camera flight
+                if (viewerRef.current?.cesiumElement) {
+                  const target = viewerRef.current.cesiumElement.entities.getById(sat.id);
+                  if (target) {
+                    viewerRef.current.cesiumElement.flyTo(target, {
+                      duration: 1.5,
+                      offset: new HeadingPitchRange(
+                        0, // North
+                        CesiumMath.toRadians(-90), // Looking straight down
+                        5000000 // 5,000km zoom level
+                      ),
+                    });
+                  }
+                }
+              }}
+            >
+              {/* Hardware-Safe 2D Circles for Apple Silicon */}
+              <BillboardGraphics
+                image={
+                  sat.type === "active"
+                    ? "data:image/svg+xml,%3Csvg width='12' height='12' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='6' cy='6' r='6' fill='white'/%3E%3C/svg%3E"
+                    : "data:image/svg+xml,%3Csvg width='8' height='8' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='4' cy='4' r='4' fill='red'/%3E%3C/svg%3E"
+                }
+                width={sat.type === "active" ? 6 : 4}
+                height={sat.type === "active" ? 6 : 4}
+              />
+            </Entity>
+          ))}
         {/* Target Lock Circle */}
         {selectedSat && (
         <Entity>
           <PolylineGraphics
             positions={(() => {
               const satrec = satellite.twoline2satrec(selectedSat.tle1, selectedSat.tle2);
-              const pathPositions: Cartesian3[] = [];
+              
+              // 1. Force the very first point of the line to be the exact satellite coordinate
+              const pathPositions: Cartesian3[] = [selectedSat.position]; 
+              
               const now = new Date();
               
-              // Calculate position every 3 minutes for the next 90 minutes (one full orbit)
-              for (let i = 0; i <= 90; i += 3) {
+              // 2. Start the math loop at 3 minutes to avoid drawing a dot on top of a dot
+              for (let i = 3; i <= 90; i += 3) {
                 const futureTime = new Date(now.getTime() + i * 60000);
                 const gmst = satellite.gstime(futureTime);
                 const posVel = satellite.propagate(satrec, futureTime);
@@ -266,17 +287,16 @@ export default function Globe() {
                 <span className="text-gray-400 text-xs font-mono">NORAD ID: {selectedSat.name.split(' ')[selectedSat.name.split(' ').length - 1] || 'UNKNOWN'}</span>
               </div>
               <button 
-                onClick={() => {
-                    setSelectedSat(null);
-                    // Command the camera to fly back to default orbit over 1.5 seconds
-                    if (viewerRef.current?.cesiumElement) {
-                    viewerRef.current.cesiumElement.camera.flyHome(1.5);
-                    }
-                }}
-                className="p-1 hover:bg-slate-800 rounded-full transition-colors"
-                >
-                <X size={20} className="text-slate-400 hover:text-white" />
-              </button>
+              onClick={() => {
+                setSelectedSat(null); // Clear the selection
+                if (viewerRef.current?.cesiumElement) {
+                  viewerRef.current.cesiumElement.camera.flyHome(1.5); // Arc back to space
+                }
+              }}
+              className="p-1 hover:bg-slate-800 rounded-full transition-colors"
+            >
+              <X size={20} className="text-slate-400 hover:text-white" />
+            </button>
             </div>
 
             {/* Header */}
