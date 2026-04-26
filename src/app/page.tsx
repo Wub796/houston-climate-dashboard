@@ -1,16 +1,22 @@
-"use client";
-
 import dynamic from "next/dynamic";
 
-// Dynamically import the ENTIRE wrapper component, bypassing Server-Side Rendering
-const DynamicGlobe = dynamic(() => import("../components/Globe"), { 
+// 1. Force Next.js to completely ignore this component on the server
+const DynamicGlobe = dynamic(() => import("../components/Globe"), {
   ssr: false,
-  loading: () => <div style={{ color: 'white', padding: '20px' }}>Igniting Aerospace Engine...</div>
+  // 2. Show a cinematic loading screen while the 3D engine boots up
+  loading: () => (
+    <div className="flex h-screen w-screen items-center justify-center bg-slate-950 text-white font-mono">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="animate-pulse">Initializing Aerospace Engines...</p>
+      </div>
+    </div>
+  ),
 });
 
 export default function Home() {
   return (
-    <main style={{ width: "100vw", height: "100vh", margin: 0, padding: 0, overflow: "hidden", backgroundColor: "black" }}>
+    <main className="h-screen w-screen bg-black overflow-hidden">
       <DynamicGlobe />
     </main>
   );
