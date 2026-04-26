@@ -40,13 +40,13 @@ export default function Globe() {
 
   const [filter, setFilter] = useState<"all" | "active" | "debris">("all");
 
-    useEffect(() => {
+  useEffect(() => {
     // Fetch active weather sats and the Iridium-33 debris field simultaneously
     Promise.all([
       fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle").then(res => res.text()),
       fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle").then(res => res.text())
     ]).then(([activeData, debrisData]) => {
-      
+
       const sats: SatelliteData[] = [];
       const now = new Date();
       const gmst = satellite.gstime(now);
@@ -63,11 +63,14 @@ export default function Globe() {
           try {
             const satrec = satellite.twoline2satrec(tle1, tle2);
             const posVel = satellite.propagate(satrec, now);
-            
-            if (posVel.position && typeof posVel.position !== "boolean" && !isNaN(posVel.position.x)) {
+
+            if (
+              posVel.position && typeof posVel.position !== "boolean" && !isNaN(posVel.position.x) &&
+              posVel.velocity && typeof posVel.velocity !== "boolean"
+            ) {
               const posEcf = satellite.eciToEcf(posVel.position, gmst);
               const geodetic = satellite.eciToGeodetic(posVel.position, gmst);
-              
+
               let uniqueId = name;
               if (seenIds.has(uniqueId)) uniqueId = `${name}-${i}`;
               seenIds.add(uniqueId);
@@ -96,47 +99,47 @@ export default function Globe() {
   return (
     <div className="relative w-full h-full bg-black">
       <div className="absolute top-6 right-6 z-50 flex gap-4 bg-slate-900/80 backdrop-blur-md p-2 rounded-lg border border-slate-700 shadow-2xl">
-    <button 
-      onClick={() => setFilter("all")} 
-      className={`px-4 py-2 rounded ${filter === "all" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"}`}
-    >
-      View All
-    </button>
-    <button 
-      onClick={() => setFilter("active")} 
-      className={`px-4 py-2 rounded flex items-center gap-2 ${filter === "active" ? "bg-white text-black" : "text-slate-400 hover:text-white"}`}
-    >
-      <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
-      Active Payloads
-    </button>
-    <button 
-      onClick={() => setFilter("debris")} 
-      className={`px-4 py-2 rounded flex items-center gap-2 ${filter === "debris" ? "bg-red-600 text-white" : "text-slate-400 hover:text-white"}`}
-    >
-      <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,1)]"></span>
-      Space Debris
-    </button>
-    
-    <div className="w-px bg-slate-700 mx-2"></div>
+        <button
+          onClick={() => setFilter("all")}
+          className={`px-4 py-2 rounded ${filter === "all" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"}`}
+        >
+          View All
+        </button>
+        <button
+          onClick={() => setFilter("active")}
+          className={`px-4 py-2 rounded flex items-center gap-2 ${filter === "active" ? "bg-white text-black" : "text-slate-400 hover:text-white"}`}
+        >
+          <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+          Active Payloads
+        </button>
+        <button
+          onClick={() => setFilter("debris")}
+          className={`px-4 py-2 rounded flex items-center gap-2 ${filter === "debris" ? "bg-red-600 text-white" : "text-slate-400 hover:text-white"}`}
+        >
+          <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,1)]"></span>
+          Space Debris
+        </button>
 
-    {/* The Houston Flyover Button */}
-    <button 
-      onClick={() => {
-        if (viewerRef.current?.cesiumElement) {
-          viewerRef.current.cesiumElement.camera.flyTo({
-            // Fly to longitude -95.36, latitude 29.76 (Houston), at an altitude of 4000km
-            destination: Cartesian3.fromDegrees(-95.3698, 29.7604, 4000000),
-            duration: 2.5
-          });
-        }
-      }} 
-      className="px-4 py-2 rounded bg-amber-600/20 text-amber-500 border border-amber-600/50 hover:bg-amber-600 hover:text-white transition-all font-bold"
-    >
-      Houston Flyover
-    </button>
-  </div>
-      <Viewer 
-        ref={viewerRef} 
+        <div className="w-px bg-slate-700 mx-2"></div>
+
+        {/* The Houston Flyover Button */}
+        <button
+          onClick={() => {
+            if (viewerRef.current?.cesiumElement) {
+              viewerRef.current.cesiumElement.camera.flyTo({
+                // Fly to longitude -95.36, latitude 29.76 (Houston), at an altitude of 4000km
+                destination: Cartesian3.fromDegrees(-95.3698, 29.7604, 4000000),
+                duration: 2.5
+              });
+            }
+          }}
+          className="px-4 py-2 rounded bg-amber-600/20 text-amber-500 border border-amber-600/50 hover:bg-amber-600 hover:text-white transition-all font-bold"
+        >
+          Houston Flyover
+        </button>
+      </div>
+      <Viewer
+        ref={viewerRef}
         full
         animation={false}
         timeline={false}
@@ -156,36 +159,36 @@ export default function Globe() {
         }}
       >
         {/* Houston Radar Dome */}
-      <Entity position={Cartesian3.fromDegrees(-95.3698, 29.7604, 0)}>
-        <EllipseGraphics 
-          semiMajorAxis={500000.0} // 500km threat radius
-          semiMinorAxis={500000.0}
-          material={Color.RED.withAlpha(0.2)}
-          outline={true}
-          outlineColor={Color.RED}
-        />
-      </Entity>
+        <Entity position={Cartesian3.fromDegrees(-95.3698, 29.7604, 0)}>
+          <EllipseGraphics
+            semiMajorAxis={500000.0} // 500km threat radius
+            semiMinorAxis={500000.0}
+            material={Color.RED.withAlpha(0.2)}
+            outline={true}
+            outlineColor={Color.RED}
+          />
+        </Entity>
 
-      <ScreenSpaceEventHandler>
-        <ScreenSpaceEvent
-        type={ScreenSpaceEventType.LEFT_CLICK}
-        action={(movement) => {
-            // TypeScript Shield: Only proceed if this specific movement has a 'position'
-            if ("position" in movement && movement.position) {
-            const viewer = viewerRef.current?.cesiumElement;
-            if (viewer) {
-                // Now TypeScript knows movement.position is 100% safe to use
-                const pickedObject = viewer.scene.pick(movement.position);
-                
-                if (!pickedObject) {
-                setSelectedSat(null);
-                viewer.camera.flyHome(1.5);
+        <ScreenSpaceEventHandler>
+          <ScreenSpaceEvent
+            type={ScreenSpaceEventType.LEFT_CLICK}
+            action={(movement) => {
+              // TypeScript Shield: Only proceed if this specific movement has a 'position'
+              if ("position" in movement && movement.position) {
+                const viewer = viewerRef.current?.cesiumElement;
+                if (viewer) {
+                  // Now TypeScript knows movement.position is 100% safe to use
+                  const pickedObject = viewer.scene.pick(movement.position);
+
+                  if (!pickedObject) {
+                    setSelectedSat(null);
+                    viewer.camera.flyHome(1.5);
+                  }
                 }
-            }
-            }
-        }}
-        />
-    </ScreenSpaceEventHandler>
+              }
+            }}
+          />
+        </ScreenSpaceEventHandler>
 
         {/* WE FIXED THE SIZE AND COLOR CRASH HERE */}
         {satellites
@@ -199,7 +202,7 @@ export default function Globe() {
               onClick={() => {
                 // 1. Set the sidebar target
                 setSelectedSat(sat);
-                
+
                 // 2. Execute the Top-Down Drone Camera flight
                 if (viewerRef.current?.cesiumElement) {
                   const target = viewerRef.current.cesiumElement.entities.getById(sat.id);
@@ -230,48 +233,48 @@ export default function Globe() {
           ))}
         {/* Target Lock Circle */}
         {selectedSat && (
-        <Entity>
-          <PolylineGraphics
-            positions={(() => {
-              const satrec = satellite.twoline2satrec(selectedSat.tle1, selectedSat.tle2);
-              
-              // 1. Force the very first point of the line to be the exact satellite coordinate
-              const pathPositions: Cartesian3[] = [selectedSat.position]; 
-              
-              const now = new Date();
-              
-              // 2. Start the math loop at 3 minutes to avoid drawing a dot on top of a dot
-              for (let i = 3; i <= 90; i += 3) {
-                const futureTime = new Date(now.getTime() + i * 60000);
-                const gmst = satellite.gstime(futureTime);
-                const posVel = satellite.propagate(satrec, futureTime);
-                
-                if (posVel.position && typeof posVel.position !== 'boolean') {
-                  const posEcf = satellite.eciToEcf(posVel.position, gmst);
-                  pathPositions.push(
-                    Cartesian3.fromElements(posEcf.x * 1000, posEcf.y * 1000, posEcf.z * 1000)
-                  );
+          <Entity>
+            <PolylineGraphics
+              positions={(() => {
+                const satrec = satellite.twoline2satrec(selectedSat.tle1, selectedSat.tle2);
+
+                // 1. Force the very first point of the line to be the exact satellite coordinate
+                const pathPositions: Cartesian3[] = [selectedSat.position];
+
+                const now = new Date();
+
+                // 2. Start the math loop at 3 minutes to avoid drawing a dot on top of a dot
+                for (let i = 3; i <= 90; i += 3) {
+                  const futureTime = new Date(now.getTime() + i * 60000);
+                  const gmst = satellite.gstime(futureTime);
+                  const posVel = satellite.propagate(satrec, futureTime);
+
+                  if (posVel.position && typeof posVel.position !== 'boolean') {
+                    const posEcf = satellite.eciToEcf(posVel.position, gmst);
+                    pathPositions.push(
+                      Cartesian3.fromElements(posEcf.x * 1000, posEcf.y * 1000, posEcf.z * 1000)
+                    );
+                  }
                 }
-              }
-              return pathPositions;
-            })()}
-            width={2}
-            material={Color.CYAN.withAlpha(0.5)} // Glowing semi-transparent trail
-          />
-        </Entity>
-      )}
+                return pathPositions;
+              })()}
+              width={2}
+              material={Color.CYAN.withAlpha(0.5)} // Glowing semi-transparent trail
+            />
+          </Entity>
+        )}
       </Viewer>
 
       {/* ANIMATED CINEMATIC SIDEBAR */}
       <AnimatePresence>
         {selectedSat && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: 100, filter: "blur(10px)" }}
             animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
             exit={{ opacity: 0, x: 50, filter: "blur(10px)" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className="absolute top-4 left-3 bottom-4 w-[400px] z-50 flex flex-col p-8 overflow-y-auto rounded-3xl"
-            style={{ 
+            style={{
               background: "linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(0, 0, 0, 0.9) 100%)",
               backdropFilter: "blur(20px)",
               border: "1px solid rgba(255,255,255,0.08)",
@@ -286,17 +289,17 @@ export default function Globe() {
                 <span className="uppercase tracking-[0.3em] text-[10px] font-bold text-cyan-400 mb-1">Target Locked</span>
                 <span className="text-gray-400 text-xs font-mono">NORAD ID: {selectedSat.name.split(' ')[selectedSat.name.split(' ').length - 1] || 'UNKNOWN'}</span>
               </div>
-              <button 
-              onClick={() => {
-                setSelectedSat(null); // Clear the selection
-                if (viewerRef.current?.cesiumElement) {
-                  viewerRef.current.cesiumElement.camera.flyHome(1.5); // Arc back to space
-                }
-              }}
-              className="p-1 hover:bg-slate-800 rounded-full transition-colors"
-            >
-              <X size={20} className="text-slate-400 hover:text-white" />
-            </button>
+              <button
+                onClick={() => {
+                  setSelectedSat(null); // Clear the selection
+                  if (viewerRef.current?.cesiumElement) {
+                    viewerRef.current.cesiumElement.camera.flyHome(1.5); // Arc back to space
+                  }
+                }}
+                className="p-1 hover:bg-slate-800 rounded-full transition-colors"
+              >
+                <X size={20} className="text-slate-400 hover:text-white" />
+              </button>
             </div>
 
             {/* Header */}
@@ -319,15 +322,15 @@ export default function Globe() {
                 </div>
                 {/* Visual Bar */}
                 <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }} 
-                    animate={{ width: `${Math.min((selectedSat.velocity / 10) * 100, 100)}%` }} 
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min((selectedSat.velocity / 10) * 100, 100)}%` }}
                     transition={{ duration: 1, delay: 0.2 }}
                     className="h-full bg-cyan-400 shadow-[0_0_10px_#00ffcc]"
                   />
                 </div>
               </div>
-              
+
               {/* Altitude Data Visualizer */}
               <div className="flex flex-col">
                 <div className="flex justify-between items-center mb-2 text-gray-400">
@@ -339,9 +342,9 @@ export default function Globe() {
                 </div>
                 {/* Visual Bar */}
                 <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }} 
-                    animate={{ width: `${Math.min((selectedSat.altitude / 1000) * 100, 100)}%` }} 
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min((selectedSat.altitude / 1000) * 100, 100)}%` }}
                     transition={{ duration: 1, delay: 0.4 }}
                     className="h-full bg-emerald-400 shadow-[0_0_10px_#34d399]"
                   />
@@ -350,16 +353,16 @@ export default function Globe() {
             </div>
 
             {/* Community Impact Section */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
-              style={{ background: "rgba(99, 102, 241, 0.05)", border: "1px solid rgba(99, 102, 241, 0.1)" }} 
+              style={{ background: "rgba(99, 102, 241, 0.05)", border: "1px solid rgba(99, 102, 241, 0.1)" }}
               className="p-6 rounded-2xl mt-auto relative overflow-hidden"
             >
               {/* Decorative background glow */}
               <div className="absolute top-0 left-0 w-32 h-32 bg-indigo-500/10 blur-3xl rounded-full"></div>
-              
+
               <div className="flex items-center space-x-2 mb-3 text-indigo-400 relative z-10">
                 <ShieldAlert size={18} />
                 <h3 className="text-xs font-bold uppercase tracking-[0.2em]">Community Impact</h3>
