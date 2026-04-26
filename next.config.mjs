@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  transpilePackages: ['cesium'],
   webpack: (config, { webpack }) => {
     // 1. Intercept and strip the strict "node:" URI prefix
     config.plugins.push(

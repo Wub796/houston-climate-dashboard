@@ -1,0 +1,32 @@
+
+> houston-climate-dashboard@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+/Users/bnjw/Documents/Personal_Project/houston-climate-dashboard/.next/server/app/page.js:727
+\0\v@ \x07A\xc1\0k\x07\v\0\v \x07A\xd3\0F\r\v\f\v \b)0!A\x93	\f\vA\0!\x07@@@@@@@ \b\0\v \b(0 6\0\f\x1b\v \b(0 6\0\f\v \b(0 \xac7\0\f\v \b(0 ;\0\f\v \b(0 :\0\0\f\v \b(0 6\0\f\v \b(0 \xac7\0\f\vA\b 	 	A\bM\x1b!	 \fA\br!\fA\xf8\0!\x07\v ! \x07A q!\r \b)0""\x1bPE@@ Ak" \x1b§Aq-\0\x90u \rr:\0\0 \x1bB\x88"\x1bB\0R\r\0\v\v !\r \fA\bqE Pr\r \x07AvA\x93	j!A!\f\v ! \b)0""\x1bPE@@ Ak" \x1b§A\x07qA0r:\0\0 \x1bB\x88"\x1bB\0R\r\0\v\v !\r \fA\bqE\r 	  k"  	H\x1b!	\f\v \b)0"B\0S@ \bB\0 }"70A!A\x93	\f\v \fA\x80q@A!A\x94	\f\vA\x95	A\x93	 \fAq"\x1b\v!  x!\r\v  	A\0Hq\r \fA\xff\xff{q \f \x1b!\f B\0R 	rE@ !\rA\0!	\f\v 	 P  \rkj"  	H\x1b!	\f\r\v \b-\00!\x07\f\v\v \b(0"A\xc4 \x1b"\rA\0A\xff\xff\xff\xff\x07 	 	A\xff\xff\xff\xff\x07O\x1b"\x07\xca" \rk \x07 \x1b" \rj!
+                                                                            	                                                                                                                                                                                   	 	         	                                                                                                                                                         	                                                                                                            	          	      	                                          	                          	          	     	                              	                                         	             	      	               	      	         ^
+
+SyntaxError: Octal escape sequences are not allowed in template strings.
+    at wrapSafe (node:internal/modules/cjs/loader:1464:18)
+    at Module._compile (node:internal/modules/cjs/loader:1495:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+    at Module.load (node:internal/modules/cjs/loader:1266:32)
+    at Module._load (node:internal/modules/cjs/loader:1091:12)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+    at mod.require (/Users/bnjw/Documents/Personal_Project/houston-climate-dashboard/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:182:18)
+    at requirePage (/Users/bnjw/Documents/Personal_Project/houston-climate-dashboard/node_modules/next/dist/server/require.js:109:84)
+    at /Users/bnjw/Documents/Personal_Project/houston-climate-dashboard/node_modules/next/dist/server/load-components.js:103:84
+
+> Build error occurred
+Error: Failed to collect page data for /
+    at /Users/bnjw/Documents/Personal_Project/houston-climate-dashboard/node_modules/next/dist/build/utils.js:1269:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  type: 'Error'
+}
