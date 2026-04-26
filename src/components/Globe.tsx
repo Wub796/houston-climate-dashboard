@@ -2,10 +2,8 @@ import * as satellite from "satellite.js";
 import { X, Activity, Mountain, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
-import { CesiumComponentRef } from "resium";
-import { Viewer as CesiumViewer } from "cesium";
-import { Viewer, Entity, PointGraphics, ScreenSpaceEventHandler, ScreenSpaceEvent } from "resium";
-import { Cartesian3, Color, ScreenSpaceEventType } from "cesium";
+import { Viewer as CesiumViewer, Cartesian3, Color, ScreenSpaceEventType } from "cesium";
+import { CesiumComponentRef, Viewer, Entity, PointGraphics, ScreenSpaceEventHandler, ScreenSpaceEvent, PolylineGraphics, EllipseGraphics } from "resium";
 
 // Bypass local web workers
 // 1. Safely tell TypeScript that our window object has a Cesium property
@@ -22,11 +20,14 @@ if (typeof window !== "undefined") {
 
 // 1. Define the exact shape of your satellite data to banish the 'any' type
 export interface SatelliteData {
-  id: string;   // <-- Add this new field
+  id: string;
   name: string;
   position: Cartesian3;
   altitude: number;
   velocity: number;
+  tle1: string;
+  tle2: string;
+  type: "active" | "debris";
 }
 export default function Globe() {
   // 2. Apply the strict interface to your state hooks
@@ -35,18 +36,23 @@ export default function Globe() {
 
   const viewerRef = useRef<CesiumComponentRef<CesiumViewer>>(null);
 
-  useEffect(() => {
-    fetch("https://celestrak.org/NORAD/elements/weather.txt")
-      .then((res) => res.text())
-      .then((data) => {
-        const lines = data.split("\n");
-        const sats: SatelliteData[] = [];
-        const now = new Date();
-        const gmst = satellite.gstime(now);
-        
-        // NEW: Create a registry to track duplicate names
-        const seenIds = new Set<string>();
+  const [filter, setFilter] = useState<"all" | "active" | "debris">("all");
 
+    useEffect(() => {
+    // Fetch active weather sats and the Iridium-33 debris field simultaneously
+    Promise.all([
+      fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle").then(res => res.text()),
+      fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle").then(res => res.text())
+    ]).then(([activeData, debrisData]) => {
+      
+      const sats: SatelliteData[] = [];
+      const now = new Date();
+      const gmst = satellite.gstime(now);
+      const seenIds = new Set<string>();
+
+      // Helper function to parse and push data to keep code clean
+      const processData = (data: string, type: "active" | "debris") => {
+        const lines = data.split("\n");
         for (let i = 0; i < lines.length - 2; i += 3) {
           const name = lines[i].trim();
           const tle1 = lines[i + 1].trim();
@@ -54,55 +60,90 @@ export default function Globe() {
 
           try {
             const satrec = satellite.twoline2satrec(tle1, tle2);
-            const positionAndVelocity = satellite.propagate(satrec, now);
-            const positionEci = positionAndVelocity.position;
-            const velocityEci = positionAndVelocity.velocity;
-
-            if (typeof positionEci !== "boolean" && positionEci && !isNaN(positionEci.x)) {
-              const positionEcf = satellite.eciToEcf(positionEci, gmst);
-              const x = positionEcf.x * 1000;
-              const y = positionEcf.y * 1000;
-              const z = positionEcf.z * 1000;
-
-              const geodetic = satellite.eciToGeodetic(positionEci, gmst);
-              const altitude = geodetic.height;
-
-              const velocity = Math.sqrt(
-                Math.pow(velocityEci.x, 2) + Math.pow(velocityEci.y, 2) + Math.pow(velocityEci.z, 2)
-              );
-
-              // NEW: Guarantee a unique ID
+            const posVel = satellite.propagate(satrec, now);
+            
+            if (posVel.position && typeof posVel.position !== "boolean" && !isNaN(posVel.position.x)) {
+              const posEcf = satellite.eciToEcf(posVel.position, gmst);
+              const geodetic = satellite.eciToGeodetic(posVel.position, gmst);
+              
               let uniqueId = name;
-              if (seenIds.has(uniqueId)) {
-                uniqueId = `${name}-${i}`; // Attach the line number to duplicates
-              }
+              if (seenIds.has(uniqueId)) uniqueId = `${name}-${i}`;
               seenIds.add(uniqueId);
 
               sats.push({
-                id: uniqueId, // Pass the safe unique ID
-                name,         // Keep the original clean name for the UI
-                position: Cartesian3.fromElements(x, y, z),
-                altitude: altitude,
-                velocity: velocity
+                id: uniqueId,
+                name,
+                position: Cartesian3.fromElements(posEcf.x * 1000, posEcf.y * 1000, posEcf.z * 1000),
+                altitude: geodetic.height,
+                velocity: Math.sqrt(Math.pow(posVel.velocity.x, 2) + Math.pow(posVel.velocity.y, 2) + Math.pow(posVel.velocity.z, 2)),
+                tle1,
+                tle2,
+                type // Tag it as active or debris
               });
             }
-          } catch {
-            console.warn(`Skipped corrupted TLE`);
-          }
+          } catch { /* skip corrupted TLEs */ }
         }
-        setSatellites(sats);
-      });
+      };
+
+      processData(activeData, "active");
+      processData(debrisData, "debris");
+      setSatellites(sats);
+    });
   }, []);
 
   return (
     <div className="relative w-full h-full bg-black">
+      <div className="absolute top-6 right-6 z-50 flex gap-4 bg-slate-900/80 backdrop-blur-md p-2 rounded-lg border border-slate-700 shadow-2xl">
+    <button 
+      onClick={() => setFilter("all")} 
+      className={`px-4 py-2 rounded ${filter === "all" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"}`}
+    >
+      View All
+    </button>
+    <button 
+      onClick={() => setFilter("active")} 
+      className={`px-4 py-2 rounded flex items-center gap-2 ${filter === "active" ? "bg-white text-black" : "text-slate-400 hover:text-white"}`}
+    >
+      <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+      Active Payloads
+    </button>
+    <button 
+      onClick={() => setFilter("debris")} 
+      className={`px-4 py-2 rounded flex items-center gap-2 ${filter === "debris" ? "bg-red-600 text-white" : "text-slate-400 hover:text-white"}`}
+    >
+      <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,1)]"></span>
+      Space Debris
+    </button>
+    
+    <div className="w-px bg-slate-700 mx-2"></div>
+
+    {/* The Houston Flyover Button */}
+    <button 
+      onClick={() => {
+        if (viewerRef.current?.cesiumElement) {
+          viewerRef.current.cesiumElement.camera.flyTo({
+            // Fly to longitude -95.36, latitude 29.76 (Houston), at an altitude of 4000km
+            destination: Cartesian3.fromDegrees(-95.3698, 29.7604, 4000000),
+            duration: 2.5
+          });
+        }
+      }} 
+      className="px-4 py-2 rounded bg-amber-600/20 text-amber-500 border border-amber-600/50 hover:bg-amber-600 hover:text-white transition-all font-bold"
+    >
+      Houston Flyover
+    </button>
+  </div>
       <Viewer 
         ref={viewerRef} 
         full
-        infoBox={false} 
-        timeline={false} 
         animation={false}
-        selectionIndicator={false}
+        timeline={false}
+        geocoder={false}
+        homeButton={false}
+        infoBox={false}
+        sceneModePicker={false}
+        navigationHelpButton={false}
+        baseLayerPicker={false}
         onSelectedEntityChange={(entity) => {
           if (entity && entity.id) {
             const satData = satellites.find(s => s.name === entity.id);
@@ -112,6 +153,16 @@ export default function Globe() {
           }
         }}
       >
+        {/* Houston Radar Dome */}
+      <Entity position={Cartesian3.fromDegrees(-95.3698, 29.7604, 0)}>
+        <EllipseGraphics 
+          semiMajorAxis={500000.0} // 500km threat radius
+          semiMinorAxis={500000.0}
+          material={Color.RED.withAlpha(0.2)}
+          outline={true}
+          outlineColor={Color.RED}
+        />
+      </Entity>
 
       <ScreenSpaceEventHandler>
         <ScreenSpaceEvent
@@ -135,43 +186,57 @@ export default function Globe() {
     </ScreenSpaceEventHandler>
 
         {/* WE FIXED THE SIZE AND COLOR CRASH HERE */}
-        {satellites.map((sat) => (
-        <Entity 
+        {satellites
+          .filter(sat => filter === "all" || sat.type === filter) // Apply the filter
+          .map((sat) => (
+          <Entity 
             key={sat.id}
             id={sat.id}
             position={sat.position}
             name={sat.name}
-            // We remove the (e) parameter completely
             onClick={() => {
-            setSelectedSat(sat);
-            
-            const viewer = viewerRef.current?.cesiumElement;
-            if (viewer) {
-                // Find the exact 3D object in the engine using our guaranteed sat.id
-                const targetEntity = viewer.entities.getById(sat.id);
-                
-                if (targetEntity) {
-                viewer.flyTo(targetEntity, {
-                    duration: 1.5,
-                });
-                }
-            }
+              setSelectedSat(sat);
+              if (viewerRef.current?.cesiumElement) {
+                const target = viewerRef.current.cesiumElement.entities.getById(sat.id);
+                if (target) viewerRef.current.cesiumElement.flyTo(target, { duration: 1.5 });
+              }
             }}
-        >
-            <PointGraphics pixelSize={5} color={Color.WHITE} />
-        </Entity>
+          >
+            <PointGraphics 
+              pixelSize={sat.type === "active" ? 6 : 4} // Active sats are slightly bigger
+              color={sat.type === "active" ? Color.WHITE : Color.RED} // Debris is RED
+            />
+          </Entity>
         ))}
         {/* Target Lock Circle */}
         {selectedSat && (
-        <Entity position={selectedSat.position}>
-            <PointGraphics 
-            pixelSize={20} 
-            color={Color.TRANSPARENT} 
-            outlineColor={Color.CYAN} 
-            outlineWidth={3} 
-            />
+        <Entity>
+          <PolylineGraphics
+            positions={(() => {
+              const satrec = satellite.twoline2satrec(selectedSat.tle1, selectedSat.tle2);
+              const pathPositions: Cartesian3[] = [];
+              const now = new Date();
+              
+              // Calculate position every 3 minutes for the next 90 minutes (one full orbit)
+              for (let i = 0; i <= 90; i += 3) {
+                const futureTime = new Date(now.getTime() + i * 60000);
+                const gmst = satellite.gstime(futureTime);
+                const posVel = satellite.propagate(satrec, futureTime);
+                
+                if (posVel.position && typeof posVel.position !== 'boolean') {
+                  const posEcf = satellite.eciToEcf(posVel.position, gmst);
+                  pathPositions.push(
+                    Cartesian3.fromElements(posEcf.x * 1000, posEcf.y * 1000, posEcf.z * 1000)
+                  );
+                }
+              }
+              return pathPositions;
+            })()}
+            width={2}
+            material={Color.CYAN.withAlpha(0.5)} // Glowing semi-transparent trail
+          />
         </Entity>
-        )}
+      )}
       </Viewer>
 
       {/* ANIMATED CINEMATIC SIDEBAR */}
