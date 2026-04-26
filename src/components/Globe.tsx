@@ -1,3 +1,5 @@
+"use client";
+
 import * as satellite from "satellite.js";
 import { X, Activity, Mountain, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
