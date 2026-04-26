@@ -1,9 +1,7 @@
-// 1. Tell Vercel NOT to pre-render this page during the build process
-export const dynamic = "force-dynamic";
+"use client"; // This stops the server serialization bug!
 
 import dynamicImport from "next/dynamic";
 
-// 2. Force the browser to wait until it is fully loaded before booting the 3D engine
 const DynamicGlobe = dynamicImport(() => import("../components/Globe"), {
   ssr: false,
   loading: () => (
