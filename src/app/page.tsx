@@ -1,9 +1,9 @@
-"use client"; // This stops the server serialization bug!
+import dynamic from "next/dynamic";
 
-import dynamicImport from "next/dynamic";
-
-const DynamicGlobe = dynamicImport(() => import("../components/Globe"), {
+// 1. Safely execute the dynamic import on the server
+const DynamicGlobe = dynamic(() => import("../components/Globe"), {
   ssr: false,
+  // 2. Because this is a Server Component, this function will not be destroyed in transit!
   loading: () => (
     <div className="flex h-screen w-screen items-center justify-center bg-slate-950 text-white font-mono">
       <div className="flex flex-col items-center gap-4">
