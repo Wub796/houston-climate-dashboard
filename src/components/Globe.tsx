@@ -5,7 +5,7 @@ import { X, Activity, Mountain, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import { Viewer as CesiumViewer, Cartesian3, Color, ScreenSpaceEventType, HeadingPitchRange, Math as CesiumMath } from "cesium";
-import { CesiumComponentRef, Viewer, Entity, ScreenSpaceEventHandler, ScreenSpaceEvent, PolylineGraphics, EllipseGraphics, PointGraphics } from "resium";
+import { CesiumComponentRef, Viewer, Entity, ScreenSpaceEventHandler, ScreenSpaceEvent, EllipseGraphics, PointGraphics } from "resium";
 
 // Bypass local web workers
 // 1. Safely tell TypeScript that our window object has a Cesium property
