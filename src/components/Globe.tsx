@@ -28,18 +28,14 @@ export interface SatelliteData {
   type: "active" | "debris";
 }
 export default function Globe() {
+  // ALL hooks must come first, unconditionally
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  if (!mounted) return null;
-
-  // 2. Apply the strict interface to your state hooks
   const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const [selectedSat, setSelectedSat] = useState<SatelliteData | null>(null);
-
+  const [filter, setFilter] = useState<"all" | "active" | "debris">("all");
   const viewerRef = useRef<CesiumComponentRef<CesiumViewer>>(null);
 
-  const [filter, setFilter] = useState<"all" | "active" | "debris">("all");
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     // Fetch active weather sats and the Iridium-33 debris field simultaneously
@@ -96,6 +92,17 @@ export default function Globe() {
       setSatellites(sats);
     });
   }, []);
+
+  if (!mounted) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-slate-950">
+        <div className="text-center text-slate-500">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4">Igniting orbital thrusters...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-full bg-black">
