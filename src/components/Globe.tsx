@@ -5,7 +5,7 @@ import { X, Activity, Mountain, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import { Viewer as CesiumViewer, Cartesian3, Color, ScreenSpaceEventType, HeadingPitchRange, Math as CesiumMath } from "cesium";
-import { CesiumComponentRef, Viewer, Entity, BillboardGraphics, ScreenSpaceEventHandler, ScreenSpaceEvent, PolylineGraphics, EllipseGraphics } from "resium";
+import { CesiumComponentRef, Viewer, Entity, ScreenSpaceEventHandler, ScreenSpaceEvent, PolylineGraphics, EllipseGraphics, PointGraphics } from "resium";
 
 // Bypass local web workers
 // 1. Safely tell TypeScript that our window object has a Cesium property
@@ -219,47 +219,18 @@ export default function Globe() {
                 }
               }}
             >
-              {/* Hardware-Safe 2D Circles for Apple Silicon */}
-              <BillboardGraphics
-                image={
-                  sat.type === "active"
-                    ? "data:image/svg+xml,%3Csvg width='12' height='12' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='6' cy='6' r='6' fill='white'/%3E%3C/svg%3E"
-                    : "data:image/svg+xml,%3Csvg width='8' height='8' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='4' cy='4' r='4' fill='red'/%3E%3C/svg%3E"
-                }
-                width={sat.type === "active" ? 6 : 4}
-                height={sat.type === "active" ? 6 : 4}
+              <PointGraphics
+                pixelSize={sat.type === "active" ? 6 : 4}
+                color={sat.type === "active" ? Color.WHITE : Color.RED}
               />
             </Entity>
           ))}
-        {/* Target Lock Circle */}
+        {/* Target Lock */}
         {selectedSat && (
-          <Entity>
-            <PolylineGraphics
-              positions={(() => {
-                const satrec = satellite.twoline2satrec(selectedSat.tle1, selectedSat.tle2);
-
-                // 1. Force the very first point of the line to be the exact satellite coordinate
-                const pathPositions: Cartesian3[] = [selectedSat.position];
-
-                const now = new Date();
-
-                // 2. Start the math loop at 3 minutes to avoid drawing a dot on top of a dot
-                for (let i = 3; i <= 90; i += 3) {
-                  const futureTime = new Date(now.getTime() + i * 60000);
-                  const gmst = satellite.gstime(futureTime);
-                  const posVel = satellite.propagate(satrec, futureTime);
-
-                  if (posVel.position && typeof posVel.position !== 'boolean') {
-                    const posEcf = satellite.eciToEcf(posVel.position, gmst);
-                    pathPositions.push(
-                      Cartesian3.fromElements(posEcf.x * 1000, posEcf.y * 1000, posEcf.z * 1000)
-                    );
-                  }
-                }
-                return pathPositions;
-              })()}
-              width={2}
-              material={Color.CYAN.withAlpha(0.5)} // Glowing semi-transparent trail
+          <Entity position={selectedSat.position}>
+            <PointGraphics
+              pixelSize={12}
+              color={Color.CYAN}
             />
           </Entity>
         )}
