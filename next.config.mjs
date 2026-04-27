@@ -1,25 +1,34 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['cesium'],
-  webpack: (config, { webpack }) => {
-    // 1. Intercept and strip the strict "node:" URI prefix
-    config.plugins.push(
-      new webpack.NormalModuleReplacementPlugin(/^node:/, (resource) => {
-        resource.request = resource.request.replace(/^node:/, '');
-      })
-    );
+  webpack: (config, { isServer }) => {
+    config.externals = config.externals || [];
 
-    // 2. Mathematically destroy the backend leaks so the browser doesn't panic
+    if (isServer) {
+      config.externals.push('cesium', 'resium');
+    }
+
+    // Fix Cesium's import.meta usage without babel-loader
+    config.module.rules.push({
+      test: /\.js$/,
+      include: /node_modules\/cesium/,
+      type: 'javascript/auto',
+    });
+
+    config.module.rules.push({
+      test: /node_modules\/cesium/,
+      resolve: { fullySpecified: false },
+    });
+
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
       path: false,
-      worker_threads: false,
-      module: false, // <-- THIS IS THE NEW SHIELD
+      url: false,
     };
 
     return config;
   },
+  // No output: 'standalone' — Vercel handles this itself
 };
 
 export default nextConfig;

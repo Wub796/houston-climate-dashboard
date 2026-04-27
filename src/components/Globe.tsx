@@ -1,5 +1,6 @@
 "use client";
 
+import '../lib/cesiumInit'; // Must be first
 import * as satellite from "satellite.js";
 import { X, Activity, Mountain, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,11 +14,6 @@ declare global {
   interface Window {
     CESIUM_BASE_URL: string;
   }
-}
-
-// 2. Set the base URL to your hyper-fast local public folder
-if (typeof window !== "undefined") {
-  window.CESIUM_BASE_URL = "/cesium";
 }
 
 // 1. Define the exact shape of your satellite data to banish the 'any' type
