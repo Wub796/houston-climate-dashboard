@@ -1,4 +1,5 @@
 const nextConfig = {
+  turbopack: {},
   transpilePackages: ['resium'],
   webpack: (config, { isServer }) => {
     if (isServer) {
