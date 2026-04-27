@@ -1,24 +1,12 @@
-/** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['resium', 'cesium'],
+  transpilePackages: ['resium'],
   webpack: (config, { isServer }) => {
-    config.externals = config.externals || [];
-
     if (isServer) {
-      config.externals.push('cesium', 'resium');
+      config.externals = [...(config.externals || []), 'cesium', 'resium'];
+    } else {
+      // Map `import X from 'cesium'` to `window.Cesium.X` at runtime
+      config.externals = [...(config.externals || []), { cesium: 'Cesium' }];
     }
-
-    // Fix Cesium's import.meta usage without babel-loader
-    config.module.rules.push({
-      test: /\.js$/,
-      include: /node_modules\/cesium/,
-      type: 'javascript/auto',
-    });
-
-    config.module.rules.push({
-      test: /node_modules\/cesium/,
-      resolve: { fullySpecified: false },
-    });
 
     config.resolve.fallback = {
       ...config.resolve.fallback,
@@ -29,7 +17,6 @@ const nextConfig = {
 
     return config;
   },
-  // No output: 'standalone' — Vercel handles this itself
 };
 
 export default nextConfig;
