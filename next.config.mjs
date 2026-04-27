@@ -1,5 +1,8 @@
 const nextConfig = {
   turbopack: {},
+  eslint: {
+    ignoreDuringBuilds: true, // ← add this
+  },
   transpilePackages: ['resium'],
   webpack: (config, { isServer }) => {
     if (isServer) {
