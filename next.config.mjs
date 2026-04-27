@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['resium'],
+  transpilePackages: ['resium', 'cesium'],
   webpack: (config, { isServer }) => {
     config.externals = config.externals || [];
 
