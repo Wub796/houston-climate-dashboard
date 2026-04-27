@@ -28,6 +28,11 @@ export interface SatelliteData {
   type: "active" | "debris";
 }
 export default function Globe() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) return null;
+
   // 2. Apply the strict interface to your state hooks
   const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const [selectedSat, setSelectedSat] = useState<SatelliteData | null>(null);
