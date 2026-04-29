@@ -181,9 +181,6 @@ export default function Globe() {
     </div>
   );
 
-  console.log("Cesium available:", !!(window as any).Cesium);
-  console.log("Cartesian3:", Cartesian3);
-
   const handleFlyover = async () => {
     const zip = (document.getElementById('zip-input') as HTMLInputElement)?.value;
     if (!zip || zip.length !== 5) return;
