@@ -1,8 +1,8 @@
 # Orbital Watch — Real-Time Satellite & Debris Tracker
 
 **Congressional App Challenge Submission**
-**District:** TX-[YOUR DISTRICT NUMBER]
-**Developer:** [YOUR NAME]
+**District:** TX-101912
+**Developer:** Benjamin Wu
 
 ## The Problem
 
