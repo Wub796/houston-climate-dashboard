@@ -52,6 +52,8 @@ export default function Globe() {
   const [selectedSat, setSelectedSat] = useState<SatelliteData | null>(null);
   const [filter, setFilter] = useState<"all" | "active" | "debris">("all");
   const viewerRef = useRef<CesiumComponentRef<CesiumViewer>>(null);
+  const [flyoverCount, setFlyoverCount] = useState<number | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -119,6 +121,20 @@ export default function Globe() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!ready) return;
+    const timeout = setTimeout(() => {
+      const v = viewerRef.current?.cesiumElement;
+      if (v && !v.isDestroyed()) {
+        v.canvas.style.width = '100vw';
+        v.canvas.style.height = '100vh';
+        v.resize();
+        v.scene.requestRender();
+      }
+    }, 500); // wait for DOM to settle
+    return () => clearTimeout(timeout);
+  }, [ready]);
+
   if (!ready) return (
     <div className="h-screen w-screen bg-black flex items-center justify-center">
       <span className="text-slate-500 text-sm font-mono">Initializing...</span>
@@ -128,46 +144,42 @@ export default function Globe() {
   console.log("Cesium available:", !!(window as any).Cesium);
   console.log("Cartesian3:", Cartesian3);
 
+  const handleFlyover = async () => {
+    const zip = (document.getElementById('zip-input') as HTMLInputElement)?.value;
+    if (!zip || zip.length !== 5) return;
+    try {
+      const geo = await fetch(`https://api.zippopotam.us/us/${zip}`).then(r => r.json());
+      const lat = parseFloat(geo.places[0].latitude);
+      const lon = parseFloat(geo.places[0]['longitude']);
+      if (viewerRef.current?.cesiumElement) {
+        viewerRef.current.cesiumElement.camera.flyTo({
+          destination: Cartesian3.fromDegrees(lon, lat, 3500000),
+          duration: 2.5,
+        });
+      }
+      // Find nearby satellites (within ~12 degrees)
+      const nearby = satellites.filter((sat) => {
+        const satrec = satellite.twoline2satrec(sat.tle1, sat.tle2);
+        const now = new Date();
+        const posVel = satellite.propagate(satrec, now);
+        if (!posVel.position || typeof posVel.position === 'boolean') return false;
+        const gmst = satellite.gstime(now);
+        const geo2 = satellite.eciToGeodetic(posVel.position, gmst);
+        const satLat = satellite.degreesLat(geo2.latitude);
+        const satLon = satellite.degreesLong(geo2.longitude);
+        return Math.abs(satLat - lat) < 12 && Math.abs(satLon - lon) < 12;
+      });
+      setFlyoverCount(nearby.length);
+    } catch {
+      console.error('ZIP lookup failed');
+    }
+  };
+
   return (
     <CesiumErrorBoundary>
-      <div className="relative w-full h-full bg-black">
-        <div className="absolute top-6 right-6 z-50 flex gap-4 bg-slate-900/80 backdrop-blur-md p-2 rounded-lg border border-slate-700 shadow-2xl">
-          <button
-            onClick={() => setFilter("all")}
-            className={`px-4 py-2 rounded ${filter === "all" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"}`}
-          >
-            View All
-          </button>
-          <button
-            onClick={() => setFilter("active")}
-            className={`px-4 py-2 rounded flex items-center gap-2 ${filter === "active" ? "bg-white text-black" : "text-slate-400 hover:text-white"}`}
-          >
-            <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
-            Active Payloads
-          </button>
-          <button
-            onClick={() => setFilter("debris")}
-            className={`px-4 py-2 rounded flex items-center gap-2 ${filter === "debris" ? "bg-red-600 text-white" : "text-slate-400 hover:text-white"}`}
-          >
-            <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,1)]"></span>
-            Space Debris
-          </button>
-          <div className="w-px bg-slate-700 mx-2"></div>
-          <button
-            onClick={() => {
-              if (viewerRef.current?.cesiumElement) {
-                viewerRef.current.cesiumElement.camera.flyTo({
-                  destination: Cartesian3.fromDegrees(-95.3698, 29.7604, 4000000),
-                  duration: 2.5
-                });
-              }
-            }}
-            className="px-4 py-2 rounded bg-amber-600/20 text-amber-500 border border-amber-600/50 hover:bg-amber-600 hover:text-white transition-all font-bold"
-          >
-            Houston Flyover
-          </button>
-        </div>
+      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', overflow: 'hidden' }}>
 
+        {/* ✅ Viewer — direct child of outer div, NOT inside toolbar */}
         <Viewer
           ref={viewerRef}
           full
@@ -251,6 +263,54 @@ export default function Globe() {
           )}
         </Viewer>
 
+        {/* ✅ Toolbar — overlaid on top via z-index */}
+        <div className="absolute top-6 right-6 z-50 flex gap-4 bg-slate-900/80 backdrop-blur-md p-2 rounded-lg border border-slate-700 shadow-2xl">
+          <button
+            onClick={() => setFilter("all")}
+            className={`px-4 py-2 rounded ${filter === "all" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"}`}
+          >
+            View All
+          </button>
+          <button
+            onClick={() => setFilter("active")}
+            className={`px-4 py-2 rounded flex items-center gap-2 ${filter === "active" ? "bg-white text-black" : "text-slate-400 hover:text-white"}`}
+          >
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+            Active Payloads
+          </button>
+          <button
+            onClick={() => setFilter("debris")}
+            className={`px-4 py-2 rounded flex items-center gap-2 ${filter === "debris" ? "bg-red-600 text-white" : "text-slate-400 hover:text-white"}`}
+          >
+            <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,1)]"></span>
+            Space Debris
+          </button>
+          <div className="flex items-center gap-2">
+            <input
+              id="zip-input"
+              type="text"
+              maxLength={5}
+              placeholder="ZIP code..."
+              className="w-24 px-2 py-2 rounded bg-slate-800 text-white text-sm border border-slate-600 focus:outline-none focus:border-amber-500"
+              onKeyDown={(e) => { if (e.key === 'Enter') handleFlyover(); }}
+            />
+            <button
+              onClick={handleFlyover}
+              className="px-4 py-2 rounded bg-amber-600/20 text-amber-500 border border-amber-600/50 hover:bg-amber-600 hover:text-white transition-all font-bold whitespace-nowrap"
+            >
+              Flyover
+            </button>
+          </div>
+        </div>
+
+        {/* ✅ Flyover count badge */}
+        {flyoverCount !== null && (
+          <div className="absolute top-20 right-6 z-50 bg-slate-900/90 text-amber-400 text-xs px-4 py-2 rounded-lg border border-amber-600/40">
+            {flyoverCount} objects currently near this location
+          </div>
+        )}
+
+        {/* ✅ Satellite detail panel */}
         <AnimatePresence>
           {selectedSat && (
             <motion.div
@@ -285,13 +345,11 @@ export default function Globe() {
                   <X size={20} className="text-slate-400 hover:text-white" />
                 </button>
               </div>
-
               <h2 className="text-3xl font-light tracking-tight mb-2 pr-4">{selectedSat.name}</h2>
               <div className="flex items-center space-x-3 mb-10 border-b border-white/5 pb-6">
                 <div className="w-2 h-2 rounded-full bg-red-500 animate-ping shadow-[0_0_15px_rgba(239,68,68,1)]"></div>
                 <span className="text-xs text-red-400 uppercase tracking-widest font-semibold">Active Telemetry</span>
               </div>
-
               <div className="space-y-6 mb-10">
                 <div className="flex flex-col">
                   <div className="flex justify-between items-center mb-2 text-gray-400">
@@ -310,7 +368,6 @@ export default function Globe() {
                     />
                   </div>
                 </div>
-
                 <div className="flex flex-col">
                   <div className="flex justify-between items-center mb-2 text-gray-400">
                     <div className="flex items-center space-x-2">
@@ -329,7 +386,6 @@ export default function Globe() {
                   </div>
                 </div>
               </div>
-
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -349,6 +405,65 @@ export default function Globe() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ✅ Info drawer button */}
+        <button
+          onClick={() => setDrawerOpen(o => !o)}
+          className="absolute bottom-6 right-6 z-50 px-4 py-2 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 hover:bg-indigo-600 hover:text-white transition-all text-sm font-semibold"
+        >
+          {drawerOpen ? '✕ Close' : '📡 Why This Matters'}
+        </button>
+
+        {/* ✅ Info drawer */}
+        <AnimatePresence>
+          {drawerOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 40 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+              className="absolute bottom-20 right-6 z-50 w-80 rounded-2xl overflow-y-auto max-h-[70vh]"
+              style={{
+                background: 'linear-gradient(135deg, rgba(15,23,42,0.95), rgba(0,0,0,0.98))',
+                border: '1px solid rgba(99,102,241,0.2)',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
+                color: 'white',
+                padding: '1.5rem',
+              }}
+            >
+              <h2 className="text-lg font-bold text-indigo-300 mb-1">Space Debris Crisis</h2>
+              <p className="text-xs text-slate-400 mb-4">Why Congress needs to act now</p>
+              <div className="space-y-4 text-xs text-slate-300 leading-relaxed">
+                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                  <span className="text-amber-400 font-bold block mb-1">27,000+</span>
+                  Tracked objects in orbit — defunct satellites, rocket stages, and collision fragments.
+                </div>
+                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                  <span className="text-red-400 font-bold block mb-1">Kessler Syndrome</span>
+                  One major collision can trigger a cascade, rendering entire orbital shells permanently unusable.
+                </div>
+                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                  <span className="text-cyan-400 font-bold block mb-1">Houston's Stake</span>
+                  NASA JSC, energy sector satellite comms, and emergency weather systems all depend on a clean orbital environment.
+                </div>
+                <div className="p-3 rounded-xl bg-indigo-900/30 border border-indigo-500/30">
+                  <span className="text-indigo-300 font-bold block mb-1">What Congress Can Do</span>
+                  Mandate deorbit standards, fund active debris removal, and ratify orbital traffic management treaties.
+                </div>
+              </div>
+
+              <a
+                href="https://www.congress.gov"
+                target="_blank"
+                rel="noreferrer"
+                className="block mt-4 text-center py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all"
+              >
+                📜 Contact Your Representative →
+              </a>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </div>
     </CesiumErrorBoundary>
   );

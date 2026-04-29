@@ -25,7 +25,7 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="h-screen w-screen bg-black overflow-hidden">
+    <main style={{ width: '100vw', height: '100vh', overflow: 'hidden', background: 'black' }}>
       {cesiumReady ? (
         <DynamicGlobe />
       ) : (
