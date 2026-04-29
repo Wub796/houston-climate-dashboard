@@ -74,8 +74,11 @@ export default function Globe() {
 
     Promise.all([
       fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle").then(res => res.text()),
-      fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle").then(res => res.text())
-    ]).then(([activeData, debrisData]) => {
+      fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle").then(res => res.text()),
+      fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle").then(res => res.text()),
+      fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle").then(res => res.text()),
+      fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=tle").then(res => res.text()),
+    ]).then((datasets) => {
       const sats: SatelliteData[] = [];
       const now = new Date();
       const gmst = satellite.gstime(now);
@@ -87,6 +90,7 @@ export default function Globe() {
           const name = lines[i].trim();
           const tle1 = lines[i + 1].trim();
           const tle2 = lines[i + 2].trim();
+          if (!tle1.startsWith('1 ') || !tle2.startsWith('2 ')) continue;
           try {
             const satrec = satellite.twoline2satrec(tle1, tle2);
             const posVel = satellite.propagate(satrec, now);
@@ -114,8 +118,9 @@ export default function Globe() {
         }
       };
 
-      processData(activeData, "active");
-      processData(debrisData, "debris");
+      const types: Array<"active" | "debris"> = ["active", "active", "active", "debris", "debris"];
+      datasets.forEach((data, i) => processData(data, types[i]));
+
       setSatellites(sats);
       sessionStorage.setItem('satellite-data', JSON.stringify(sats));
     });
@@ -134,6 +139,44 @@ export default function Globe() {
     }, 500); // wait for DOM to settle
     return () => clearTimeout(timeout);
   }, [ready]);
+
+  useEffect(() => {
+    if (satellites.length === 0) return;
+
+    const tick = setInterval(() => {
+      const now = new Date();
+      const gmst = satellite.gstime(now);
+
+      setSatellites(prev => prev.map(sat => {
+        try {
+          const satrec = satellite.twoline2satrec(sat.tle1, sat.tle2);
+          const posVel = satellite.propagate(satrec, now);
+          if (
+            !posVel.position || typeof posVel.position === 'boolean' ||
+            !posVel.velocity || typeof posVel.velocity === 'boolean'
+          ) return sat;
+
+          const posEcf = satellite.eciToEcf(posVel.position, gmst);
+          const geodetic = satellite.eciToGeodetic(posVel.position, gmst);
+
+          return {
+            ...sat,
+            position: Cartesian3.fromElements(posEcf.x * 1000, posEcf.y * 1000, posEcf.z * 1000),
+            altitude: geodetic.height,
+            velocity: Math.sqrt(
+              Math.pow(posVel.velocity.x, 2) +
+              Math.pow(posVel.velocity.y, 2) +
+              Math.pow(posVel.velocity.z, 2)
+            ),
+          };
+        } catch {
+          return sat;
+        }
+      }));
+    }, 5000); // update every 5 seconds
+
+    return () => clearInterval(tick);
+  }, [satellites.length]);
 
   if (!ready) return (
     <div className="h-screen w-screen bg-black flex items-center justify-center">
