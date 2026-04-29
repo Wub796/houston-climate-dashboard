@@ -66,14 +66,6 @@ export default function Globe() {
   }, []);
 
   useEffect(() => {
-    const sources: Array<{ url: string; type: "active" | "debris" }> = [
-      { url: "https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle", type: "active" },
-      { url: "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle", type: "active" },
-      { url: "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle", type: "active" },
-      { url: "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle", type: "debris" },
-      { url: "https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=tle", type: "debris" },
-    ];
-
     const processData = (data: string, type: "active" | "debris", sats: SatelliteData[], seenIds: Set<string>) => {
       const now = new Date();
       const gmst = satellite.gstime(now);
@@ -114,27 +106,21 @@ export default function Globe() {
       }
     };
 
-    const sats: SatelliteData[] = [];
-    const seenIds = new Set<string>();
-
-    // Fetch each source independently — one failure won't block others
-    Promise.allSettled(
-      sources.map(({ url, type }) =>
-        fetch(url)
-          .then(res => res.text())
-          .then(data => processData(data, type, sats, seenIds))
-          .catch(err => console.warn(`Failed to fetch ${url}:`, err))
-      )
-    ).then(() => {
-      console.log(`Loaded ${sats.length} satellites`);
-      setSatellites(sats);
-      // Only cache if small enough for sessionStorage
-      try {
-        sessionStorage.setItem('satellite-data', JSON.stringify(sats));
-      } catch {
-        console.warn('sessionStorage quota exceeded — skipping cache');
-      }
-    });
+    fetch('/api/satellites')
+      .then(res => res.json())
+      .then((payloads: Array<{ data: string; type: "active" | "debris" }>) => {
+        const sats: SatelliteData[] = [];
+        const seenIds = new Set<string>();
+        payloads.forEach(({ data, type }) => processData(data, type, sats, seenIds));
+        console.log(`Loaded ${sats.length} satellites`);
+        setSatellites(sats);
+        try {
+          sessionStorage.setItem('satellite-data', JSON.stringify(sats));
+        } catch {
+          console.warn('sessionStorage quota exceeded — skipping cache');
+        }
+      })
+      .catch(err => console.error('Failed to load satellites:', err));
   }, []);
 
   useEffect(() => {
