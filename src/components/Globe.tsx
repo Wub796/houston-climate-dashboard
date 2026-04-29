@@ -66,63 +66,74 @@ export default function Globe() {
   }, []);
 
   useEffect(() => {
-    const cached = sessionStorage.getItem('satellite-data');
-    if (cached) {
-      setSatellites(JSON.parse(cached));
-      return;
-    }
+    const sources: Array<{ url: string; type: "active" | "debris" }> = [
+      { url: "https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle", type: "active" },
+      { url: "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle", type: "active" },
+      { url: "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle", type: "active" },
+      { url: "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle", type: "debris" },
+      { url: "https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=tle", type: "debris" },
+    ];
 
-    Promise.all([
-      fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle").then(res => res.text()),
-      fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle").then(res => res.text()),
-      fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle").then(res => res.text()),
-      fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle").then(res => res.text()),
-      fetch("https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=tle").then(res => res.text()),
-    ]).then((datasets) => {
-      const sats: SatelliteData[] = [];
+    const processData = (data: string, type: "active" | "debris", sats: SatelliteData[], seenIds: Set<string>) => {
       const now = new Date();
       const gmst = satellite.gstime(now);
-      const seenIds = new Set<string>();
+      const lines = data.split("\n");
+      for (let i = 0; i < lines.length - 2; i += 3) {
+        const name = lines[i].trim();
+        const tle1 = lines[i + 1]?.trim();
+        const tle2 = lines[i + 2]?.trim();
+        if (!tle1?.startsWith('1 ') || !tle2?.startsWith('2 ')) continue;
+        try {
+          const satrec = satellite.twoline2satrec(tle1, tle2);
+          const posVel = satellite.propagate(satrec, now);
+          if (
+            posVel.position && typeof posVel.position !== "boolean" && !isNaN(posVel.position.x) &&
+            posVel.velocity && typeof posVel.velocity !== "boolean"
+          ) {
+            const posEcf = satellite.eciToEcf(posVel.position, gmst);
+            const geodetic = satellite.eciToGeodetic(posVel.position, gmst);
+            let uniqueId = name;
+            if (seenIds.has(uniqueId)) uniqueId = `${name}-${i}`;
+            seenIds.add(uniqueId);
+            sats.push({
+              id: uniqueId,
+              name,
+              position: Cartesian3.fromElements(posEcf.x * 1000, posEcf.y * 1000, posEcf.z * 1000),
+              altitude: geodetic.height,
+              velocity: Math.sqrt(
+                Math.pow(posVel.velocity.x, 2) +
+                Math.pow(posVel.velocity.y, 2) +
+                Math.pow(posVel.velocity.z, 2)
+              ),
+              tle1,
+              tle2,
+              type
+            });
+          }
+        } catch { /* skip bad TLEs */ }
+      }
+    };
 
-      const processData = (data: string, type: "active" | "debris") => {
-        const lines = data.split("\n");
-        for (let i = 0; i < lines.length - 2; i += 3) {
-          const name = lines[i].trim();
-          const tle1 = lines[i + 1].trim();
-          const tle2 = lines[i + 2].trim();
-          if (!tle1.startsWith('1 ') || !tle2.startsWith('2 ')) continue;
-          try {
-            const satrec = satellite.twoline2satrec(tle1, tle2);
-            const posVel = satellite.propagate(satrec, now);
-            if (
-              posVel.position && typeof posVel.position !== "boolean" && !isNaN(posVel.position.x) &&
-              posVel.velocity && typeof posVel.velocity !== "boolean"
-            ) {
-              const posEcf = satellite.eciToEcf(posVel.position, gmst);
-              const geodetic = satellite.eciToGeodetic(posVel.position, gmst);
-              let uniqueId = name;
-              if (seenIds.has(uniqueId)) uniqueId = `${name}-${i}`;
-              seenIds.add(uniqueId);
-              sats.push({
-                id: uniqueId,
-                name,
-                position: Cartesian3.fromElements(posEcf.x * 1000, posEcf.y * 1000, posEcf.z * 1000),
-                altitude: geodetic.height,
-                velocity: Math.sqrt(Math.pow(posVel.velocity.x, 2) + Math.pow(posVel.velocity.y, 2) + Math.pow(posVel.velocity.z, 2)),
-                tle1,
-                tle2,
-                type
-              });
-            }
-          } catch { /* skip corrupted TLEs */ }
-        }
-      };
+    const sats: SatelliteData[] = [];
+    const seenIds = new Set<string>();
 
-      const types: Array<"active" | "debris"> = ["active", "active", "active", "debris", "debris"];
-      datasets.forEach((data, i) => processData(data, types[i]));
-
+    // Fetch each source independently — one failure won't block others
+    Promise.allSettled(
+      sources.map(({ url, type }) =>
+        fetch(url)
+          .then(res => res.text())
+          .then(data => processData(data, type, sats, seenIds))
+          .catch(err => console.warn(`Failed to fetch ${url}:`, err))
+      )
+    ).then(() => {
+      console.log(`Loaded ${sats.length} satellites`);
       setSatellites(sats);
-      sessionStorage.setItem('satellite-data', JSON.stringify(sats));
+      // Only cache if small enough for sessionStorage
+      try {
+        sessionStorage.setItem('satellite-data', JSON.stringify(sats));
+      } catch {
+        console.warn('sessionStorage quota exceeded — skipping cache');
+      }
     });
   }, []);
 
