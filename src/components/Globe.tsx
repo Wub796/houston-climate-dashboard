@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Component, ReactNode, useState, useEffect, useRef } from 'react';
 import { Viewer as CesiumViewer, Cartesian3, Color, ScreenSpaceEventType, HeadingPitchRange, Math as CesiumMath } from "cesium";
 import { CesiumComponentRef, Viewer, Entity, ScreenSpaceEventHandler, ScreenSpaceEvent, EllipseGraphics, PointGraphics } from "resium";
+import { a } from "framer-motion/client";
 
 class CesiumErrorBoundary extends Component<{
   children: ReactNode;
@@ -54,6 +55,7 @@ export default function Globe() {
   const viewerRef = useRef<CesiumComponentRef<CesiumViewer>>(null);
   const [flyoverCount, setFlyoverCount] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [flyoverPanelOpen, setFlyoverPanelOpen] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -194,7 +196,6 @@ export default function Globe() {
           duration: 2.5,
         });
       }
-      // Find nearby satellites (within ~12 degrees)
       const nearby = satellites.filter((sat) => {
         const satrec = satellite.twoline2satrec(sat.tle1, sat.tle2);
         const now = new Date();
@@ -207,6 +208,7 @@ export default function Globe() {
         return Math.abs(satLat - lat) < 12 && Math.abs(satLon - lon) < 12;
       });
       setFlyoverCount(nearby.length);
+      setFlyoverPanelOpen(true); // auto-open the panel
     } catch {
       console.error('ZIP lookup failed');
     }
@@ -237,7 +239,18 @@ export default function Globe() {
             }
           }}
         >
-          <Entity position={Cartesian3.fromDegrees(-95.3698, 29.7604, 0)}>
+          <Entity
+            position={Cartesian3.fromDegrees(-95.3698, 29.7604, 0)}
+            onClick={() => {
+              setFlyoverPanelOpen(true);
+              if (viewerRef.current?.cesiumElement) {
+                viewerRef.current.cesiumElement.camera.flyTo({
+                  destination: Cartesian3.fromDegrees(-95.3698, 29.7604, 3500000),
+                  duration: 2.5,
+                });
+              }
+            }}
+          >
             <EllipseGraphics
               semiMajorAxis={500000.0}
               semiMinorAxis={500000.0}
@@ -346,6 +359,82 @@ export default function Globe() {
             {flyoverCount} objects currently near this location
           </div>
         )}
+
+        {/* ✅ Flyover info sidebar */}
+        <AnimatePresence>
+          {flyoverPanelOpen && (
+            <motion.div
+              initial={{ opacity: 0, x: -60, filter: "blur(10px)" }}
+              animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, x: -40, filter: "blur(10px)" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="absolute top-24 left-3 w-[340px] z-50 flex flex-col p-6 rounded-3xl"
+              style={{
+                background: "linear-gradient(135deg, rgba(15, 23, 42, 0.92) 0%, rgba(0,0,0,0.95) 100%)",
+                backdropFilter: "blur(20px)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderTop: "1px solid rgba(239, 68, 68, 0.4)",
+                boxShadow: "0 20px 50px rgba(0,0,0,0.8)",
+                color: "white"
+              }}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <span className="uppercase tracking-[0.3em] text-[10px] font-bold text-red-400">Houston Zone</span>
+                  <h2 className="text-xl font-light tracking-tight mt-1">Orbital Risk Area</h2>
+                </div>
+                <button
+                  onClick={() => setFlyoverPanelOpen(false)}
+                  className="p-1 hover:bg-slate-800 rounded-full transition-colors"
+                >
+                  <X size={18} className="text-slate-400 hover:text-white" />
+                </button>
+              </div>
+
+              {/* Circle explanation */}
+              <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)] shrink-0" />
+                <p className="text-xs text-red-200 leading-relaxed">
+                  This circle represents a <strong>500km radius</strong> around Houston — the zone where orbital objects directly affect local infrastructure.
+                </p>
+              </div>
+
+              {/* Satellite count */}
+              {flyoverCount !== null && (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 mb-4">
+                  <span className="text-2xl font-bold text-amber-400">{flyoverCount}</span>
+                  <p className="text-xs text-amber-200 mt-1">objects currently passing overhead within 12° of this location</p>
+                </div>
+              )}
+
+              {/* Why it matters cards */}
+              <div className="space-y-3 text-xs text-slate-300 leading-relaxed">
+                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                  <span className="text-cyan-400 font-bold block mb-1">🚀 NASA Johnson Space Center</span>
+                  Mission Control for the ISS and every US crewed spaceflight operates from inside this zone. Orbital debris is a direct operational threat.
+                </div>
+                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                  <span className="text-emerald-400 font-bold block mb-1">⚡ Energy Sector</span>
+                  Offshore oil platforms in the Gulf depend on GPS and satellite communications routed through orbit. A debris cascade disrupts billions in daily operations.
+                </div>
+                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                  <span className="text-purple-400 font-bold block mb-1">🌀 Hurricane Forecasting</span>
+                  NOAA weather satellites tracked here provide the storm surge and rainfall models that protect 7 million Houston-area residents during hurricane season.
+                </div>
+              </div>
+
+              <a
+                href="https://www.congress.gov"
+                target="_blank"
+                rel="noreferrer"
+                className="block mt-4 text-center py-2 rounded-xl bg-red-600/80 hover:bg-red-500 text-white text-xs font-bold transition-all"
+              >
+                📜 Urge Congress to Act →
+              </a>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ✅ Satellite detail panel */}
         <AnimatePresence>
@@ -502,6 +591,6 @@ export default function Globe() {
         </AnimatePresence>
 
       </div>
-    </CesiumErrorBoundary>
+    </CesiumErrorBoundary >
   );
 }
